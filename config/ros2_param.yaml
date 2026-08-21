@@ -1,0 +1,45 @@
+hikrobot_camera:
+  ros__parameters:
+    #********** 图像格式 **********/
+    width: 1280             #图像宽度
+    height: 1024            #图像高度
+    Offset_x: 0             #X方向偏置
+    Offset_y: 0             #Y方向偏置
+
+    # 0x01100003:Mono10
+    # 0x010C0004:Mono10Packed
+    # 0x01100005:Mono12
+    # 0x010C0006:Mono12Packed
+    # 0x01100007:Mono16
+    # 0x02180014:RGB8Packed
+    # 0x02100032:YUV422_8
+    # 0x0210001F:YUV422_8_UYVY
+    # 0x01080008:BayerGR8
+    # 0x01080009:BayerRG8
+    # 0x0108000A:BayerGB8
+    # 0x0108000B:BayerBG8
+    # 0x0110000e:BayerGB10
+    # 0x01100012:BayerGB12
+    # 0x010C002C:BayerGB12Packed
+    PixelFormat: 0x0108000A
+
+    #********** 采集控制 **********/
+    FrameRateEnable: false   #使能 
+    FrameRate: 20           #帧率
+    TriggerMode: 1
+    TriggerSource: 0
+    LineSelector: 2
+    BurstFrameCount: 1
+
+    ExposureAuto: 0         #曝光模式
+    ExposureTime: 5000     #曝光时间
+
+    #********** 模拟控制 **********/
+    GainAuto: 0             #增益模式
+    Gain: 10.0              #增益
+
+    GammaEnable: false
+    Gamma: 0.7              #伽马因子
+
+    SaturationEnable: false
+    Saturation: 128          #饱和度
