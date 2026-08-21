@@ -11,7 +11,9 @@
 namespace camera
 {
 //********** define ************************************/
-#define MAX_IMAGE_DATA_SIZE (4 * 2048 * 3072)
+#define MAX_IMAGE_DATA_SIZE (4 * g_height * g_width)
+    int g_width;
+    int g_height;
     //********** frame ************************************/
     cv::Mat frame;
     //********** frame_empty ******************************/
@@ -26,10 +28,12 @@ namespace camera
         CAP_PROP_BURSTFRAMECOUNT,   //外部一次触发帧数
         CAP_PROP_HEIGHT,            //图像高度
         CAP_PROP_WIDTH,             //图像宽度
+        CAP_PROP_EXPOSURE_AUTO,     //自动曝光
         CAP_PROP_EXPOSURE_TIME,     //曝光时间
         CAP_PROP_GAMMA_ENABLE,      //伽马因子可调
         CAP_PROP_GAMMA,             //伽马因子
-        CAP_PROP_GAINAUTO,          //亮度
+        CAP_PROP_GAINAUTO,          //自动增益
+        CAP_PROP_GAIN,              //增益
         CAP_PROP_SATURATION_ENABLE, //饱和度可调
         CAP_PROP_SATURATION,        //饱和度
         CAP_PROP_OFFSETX,           //X偏置
@@ -73,18 +77,21 @@ namespace camera
         int height;
         int Offset_x;
         int Offset_y;
+        int PixelFormat;
         bool FrameRateEnable;
         int FrameRate;
-        int BurstFrameCount;
-        int ExposureTime;
-        bool GammaEnable;
-        float Gamma;
-        int GainAuto;
-        bool SaturationEnable;
-        int Saturation;
         int TriggerMode;
         int TriggerSource;
         int LineSelector;
+        int BurstFrameCount;
+        int ExposureAuto;
+        int ExposureTime;
+        int GainAuto;
+        float Gain;
+        bool GammaEnable;
+        float Gamma;
+        bool SaturationEnable;
+        int Saturation;
     };
     //^ *********************************************************************************** //
 
@@ -96,20 +103,25 @@ namespace camera
         //********** 读取待设置的摄像头参数 第三个参数是默认值 yaml文件未给出该值时生效 ********************************/
         node.param("width", width, 3072);
         node.param("height", height, 2048);
-        node.param("FrameRateEnable", FrameRateEnable, false);
-        node.param("FrameRate", FrameRate, 10);
-        node.param("BurstFrameCount", BurstFrameCount, 10); // 一次触发采集的次数
-        node.param("ExposureTime", ExposureTime, 50000);
-        node.param("GammaEnable", GammaEnable, false);
-        node.param("Gamma", Gamma, (float)0.7);
-        node.param("GainAuto", GainAuto, 2);
-        node.param("SaturationEnable", SaturationEnable,true);
-        node.param("Saturation", Saturation, 128);
         node.param("Offset_x", Offset_x, 0);
         node.param("Offset_y", Offset_y, 0);
+        node.param("PixelFormat", PixelFormat, 0x0108000A);
+        node.param("FrameRateEnable", FrameRateEnable, false);
+        node.param("FrameRate", FrameRate, 10);
         node.param("TriggerMode", TriggerMode, 1);
-        node.param("TriggerSource", TriggerSource, 2);
+        node.param("TriggerSource", TriggerSource, 0);
         node.param("LineSelector", LineSelector, 2);
+        node.param("BurstFrameCount", BurstFrameCount, 1); // 一次触发采集的次数
+        node.param("ExposureAuto", ExposureAuto, 0);
+        node.param("ExposureTime", ExposureTime, 5000);
+        node.param("GainAuto", GainAuto, 0);
+        node.param("Gain", Gain, (float)10.0);
+        node.param("GammaEnable", GammaEnable, false);
+        node.param("Gamma", Gamma, (float)0.7);
+        node.param("SaturationEnable", SaturationEnable, false);
+        node.param("Saturation", Saturation, 128);
+        g_width = width;
+        g_height = height;
 
         //********** 枚举设备 ********************************/
         MV_CC_DEVICE_INFO_LIST stDeviceList;
@@ -117,7 +129,7 @@ namespace camera
         nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &stDeviceList);
         if (MV_OK != nRet)
         {
-            printf("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
+            printf("MV_CC_EnumDevices fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
         unsigned int nIndex = 0;
@@ -146,7 +158,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_CreateHandle fail! nRet [%x]\n", nRet);
+            printf("MV_CC_CreateHandle fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
 
@@ -157,29 +169,29 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_OpenDevice fail! nRet [%x]\n", nRet);
+            printf("MV_CC_OpenDevice fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
 
         //设置 yaml 文件里面的配置
-        this->set(CAP_PROP_FRAMERATE_ENABLE, FrameRateEnable);
-        if (FrameRateEnable)
-            this->set(CAP_PROP_FRAMERATE, FrameRate);
-        // this->set(CAP_PROP_BURSTFRAMECOUNT, BurstFrameCount);
         this->set(CAP_PROP_HEIGHT, height);
         this->set(CAP_PROP_WIDTH, width);
         this->set(CAP_PROP_OFFSETX, Offset_x);
         this->set(CAP_PROP_OFFSETY, Offset_y);
+        this->set(CAP_PROP_FRAMERATE_ENABLE, FrameRateEnable);
+        if (FrameRateEnable)
+            this->set(CAP_PROP_FRAMERATE, FrameRate);
+        this->set(CAP_PROP_TRIGGER_MODE, TriggerMode);
+        this->set(CAP_PROP_TRIGGER_SOURCE, TriggerSource);
+        // this->set(CAP_PROP_LINE_SELECTOR, LineSelector);
+        this->set(CAP_PROP_BURSTFRAMECOUNT, BurstFrameCount);
+        this->set(CAP_PROP_EXPOSURE_AUTO, ExposureAuto);
         this->set(CAP_PROP_EXPOSURE_TIME, ExposureTime);
-        // printf("\n%d\n",GammaEnable);
+        this->set(CAP_PROP_GAINAUTO, GainAuto);
+        this->set(CAP_PROP_GAIN, Gain);
         this->set(CAP_PROP_GAMMA_ENABLE, GammaEnable);
-        // printf("\n%d\n",GammaEnable);
         if (GammaEnable)
             this->set(CAP_PROP_GAMMA, Gamma);
-        this->set(CAP_PROP_GAINAUTO, GainAuto);
-        // this->set(CAP_PROP_TRIGGER_MODE, TriggerMode);
-        // this->set(CAP_PROP_TRIGGER_SOURCE, TriggerSource);
-        // this->set(CAP_PROP_LINE_SELECTOR, LineSelector);
 
         //********** frame **********/
         //白平衡 非自适应（给定参数0）
@@ -199,48 +211,22 @@ namespace camera
         }
         else
         {
-            printf("Set BalanceRatio Failed! nRet = [%x]\n\n", nRet);
+            printf("Set BalanceRatio Failed! nRet = [0x%X]\n\n", nRet);
         }
         this->set(CAP_PROP_SATURATION_ENABLE, SaturationEnable);
         if (SaturationEnable)
             this->set(CAP_PROP_SATURATION, Saturation);
-        //软件触发
-        // ********** frame **********/
-        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", 0);
-        if (MV_OK == nRet)
-        {
-            printf("set TriggerMode OK!\n");
-        }
-        else
-        {
-            printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
-        }
 
         //********** 图像格式 **********/
-        // 0x01100003:Mono10
-        // 0x010C0004:Mono10Packed
-        // 0x01100005:Mono12
-        // 0x010C0006:Mono12Packed
-        // 0x01100007:Mono16
-        // 0x02180014:RGB8Packed
-        // 0x02100032:YUV422_8
-        // 0x0210001F:YUV422_8_UYVY
-        // 0x01080008:BayerGR8
-        // 0x01080009:BayerRG8
-        // 0x0108000A:BayerGB8
-        // 0x0108000B:BayerBG8
-        // 0x0110000e:BayerGB10
-        // 0x01100012:BayerGB12
-        // 0x010C002C:BayerGB12Packed
-        nRet = MV_CC_SetEnumValue(handle, "PixelFormat", 0x02180014); // 目前 RGB  
+        nRet = MV_CC_SetEnumValue(handle, "PixelFormat", PixelFormat); // 目前 RGB  
 
         if (MV_OK == nRet)
         {
-            printf("set PixelFormat OK ! value = RGB\n");
+            printf("set PixelFormat OK ! value = [0x%X]\n", PixelFormat);
         }
         else
         {
-            printf("MV_CC_SetPixelFormat fail! nRet [%x]\n", nRet);
+            printf("MV_CC_SetPixelFormat fail! nRet [0x%X]\n", nRet);
         }
         MVCC_ENUMVALUE t = {0};
         //********** frame **********/
@@ -249,11 +235,11 @@ namespace camera
 
         if (MV_OK == nRet)
         {
-            printf("PixelFormat :%d!\n", t.nCurValue); // 35127316
+            printf("PixelFormat :[0x%X]!\n", t.nCurValue); // 35127316
         }
         else
         {
-            printf("get PixelFormat fail! nRet [%x]\n", nRet);
+            printf("get PixelFormat fail! nRet [0x%X]\n", nRet);
         }
         // 开始取流
         //********** frame **********/
@@ -262,7 +248,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_StartGrabbing fail! nRet [%x]\n", nRet);
+            printf("MV_CC_StartGrabbing fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
         //初始化互斥量
@@ -297,7 +283,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_StopGrabbing fail! nRet [%x]\n", nRet);
+            printf("MV_CC_StopGrabbing fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
         printf("MV_CC_StopGrabbing succeed.\n");
@@ -308,7 +294,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_CloseDevice fail! nRet [%x]\n", nRet);
+            printf("MV_CC_CloseDevice fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
         printf("MV_CC_CloseDevice succeed.\n");
@@ -319,7 +305,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_DestroyHandle fail! nRet [%x]\n", nRet);
+            printf("MV_CC_DestroyHandle fail! nRet [0x%X]\n", nRet);
             exit(-1);
         }
         printf("MV_CC_DestroyHandle succeed.\n");
@@ -344,7 +330,7 @@ namespace camera
             }
             else
             {
-                printf("Set AcquisitionFrameRateEnable Failed! nRet = [%x]\n\n", nRet);
+                printf("Set AcquisitionFrameRateEnable Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -360,7 +346,7 @@ namespace camera
             }
             else
             {
-                printf("Set AcquisitionFrameRate Failed! nRet = [%x]\n\n", nRet);
+                printf("Set AcquisitionFrameRate Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -376,7 +362,7 @@ namespace camera
             }
             else
             {
-                printf("Set AcquisitionBurstFrameCount Failed! nRet = [%x]\n\n", nRet);
+                printf("Set AcquisitionBurstFrameCount Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -392,7 +378,7 @@ namespace camera
             }
             else
             {
-                printf("Set Height Failed! nRet = [%x]\n\n", nRet);
+                printf("Set Height Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -408,7 +394,7 @@ namespace camera
             }
             else
             {
-                printf("Set Width Failed! nRet = [%x]\n\n", nRet);
+                printf("Set Width Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -424,7 +410,7 @@ namespace camera
             }
             else
             {
-                printf("Set Offset X Failed! nRet = [%x]\n\n", nRet);
+                printf("Set Offset X Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -440,7 +426,23 @@ namespace camera
             }
             else
             {
-                printf("Set Offset Y Failed! nRet = [%x]\n\n", nRet);
+                printf("Set Offset Y Failed! nRet = [0x%X]\n\n", nRet);
+            }
+            break;
+        }
+        case CAP_PROP_EXPOSURE_AUTO:
+        {
+            //********** frame **********/
+
+            nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", value); //自动曝光
+
+            if (MV_OK == nRet)
+            {
+                printf("set ExposureAuto OK! value=%d\n", (int)value);
+            }
+            else
+            {
+                printf("Set ExposureAuto Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -456,7 +458,7 @@ namespace camera
             }
             else
             {
-                printf("Set ExposureTime Failed! nRet = [%x]\n\n", nRet);
+                printf("Set ExposureTime Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -472,7 +474,7 @@ namespace camera
             }
             else
             {
-                printf("Set GammaEnable Failed! nRet = [%x]\n\n", nRet);
+                printf("Set GammaEnable Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -488,7 +490,7 @@ namespace camera
             }
             else
             {
-                printf("Set Gamma Failed! nRet = [%x]\n\n", nRet);
+                printf("Set Gamma Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -496,15 +498,31 @@ namespace camera
         {
             //********** frame **********/
 
-            nRet = MV_CC_SetEnumValue(handle, "GainAuto", value); //亮度 越大越亮
+            nRet = MV_CC_SetEnumValue(handle, "GainAuto", value); //自动增益
 
             if (MV_OK == nRet)
             {
-                printf("set GainAuto OK! value=%f\n",value);
+                printf("set GainAuto OK! value=%d\n", (int)value);
             }
             else
             {
-                printf("Set GainAuto Failed! nRet = [%x]\n\n", nRet);
+                printf("Set GainAuto Failed! nRet = [0x%X]\n\n", nRet);
+            }
+            break;
+        }
+        case CAP_PROP_GAIN:
+        {
+            //********** frame **********/
+
+            nRet = MV_CC_SetFloatValue(handle, "Gain", value); //增益
+
+            if (MV_OK == nRet)
+            {
+                printf("set Gain OK! value=%f\n",value);
+            }
+            else
+            {
+                printf("Set Gain Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -520,7 +538,7 @@ namespace camera
             }
             else
             {
-                printf("Set SaturationEnable Failed! nRet = [%x]\n\n", nRet);
+                printf("Set SaturationEnable Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -536,7 +554,7 @@ namespace camera
             }
             else
             {
-                printf("Set Saturation Failed! nRet = [%x]\n\n", nRet);
+                printf("Set Saturation Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -552,7 +570,7 @@ namespace camera
             }
             else
             {
-                printf("Set TriggerMode Failed! nRet = [%x]\n\n", nRet);
+                printf("Set TriggerMode Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -567,7 +585,7 @@ namespace camera
             }
             else
             {
-                printf("Set TriggerSource Failed! nRet = [%x]\n\n", nRet);
+                printf("Set TriggerSource Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -582,7 +600,7 @@ namespace camera
             }
             else
             {
-                printf("Set LineSelector Failed! nRet = [%x]\n\n", nRet);
+                printf("Set LineSelector Failed! nRet = [0x%X]\n\n", nRet);
             }
             break;
         }
@@ -598,15 +616,17 @@ namespace camera
     {
         nRet = this->set(CAP_PROP_FRAMERATE_ENABLE, FrameRateEnable);
         nRet = this->set(CAP_PROP_FRAMERATE, FrameRate) || nRet;
-        // nRet = this->set(CAP_PROP_BURSTFRAMECOUNT, BurstFrameCount) || nRet;
+        nRet = this->set(CAP_PROP_BURSTFRAMECOUNT, BurstFrameCount) || nRet;
         nRet = this->set(CAP_PROP_HEIGHT, height) || nRet;
         nRet = this->set(CAP_PROP_WIDTH, width) || nRet;
         nRet = this->set(CAP_PROP_OFFSETX, Offset_x) || nRet;
         nRet = this->set(CAP_PROP_OFFSETY, Offset_y) || nRet;
+        nRet = this->set(CAP_PROP_EXPOSURE_AUTO, ExposureAuto) || nRet;
         nRet = this->set(CAP_PROP_EXPOSURE_TIME, ExposureTime) || nRet;
         nRet = this->set(CAP_PROP_GAMMA_ENABLE, GammaEnable) || nRet;
         nRet = this->set(CAP_PROP_GAMMA, Gamma) || nRet;
         nRet = this->set(CAP_PROP_GAINAUTO, GainAuto) || nRet;
+        nRet = this->set(CAP_PROP_GAIN, Gain) || nRet;
         nRet = this->set(CAP_PROP_SATURATION_ENABLE, SaturationEnable) || nRet;
         nRet = this->set(CAP_PROP_SATURATION, Saturation) || nRet;
         nRet = this->set(CAP_PROP_TRIGGER_MODE, TriggerMode) || nRet;
@@ -683,8 +703,8 @@ namespace camera
             image_empty_count = 0; //空图帧数
             //转换图像格式为BGR8
 
-            stConvertParam.nWidth = 3072;                               //ch:图像宽 | en:image width
-            stConvertParam.nHeight = 2048;                              //ch:图像高 | en:image height
+            stConvertParam.nWidth = stImageInfo.nWidth;                 //ch:图像宽 | en:image width
+            stConvertParam.nHeight = stImageInfo.nHeight;               //ch:图像高 | en:image height
             stConvertParam.pSrcData = m_pBufForDriver;                  //ch:输入数据缓存 | en:input data buffer
             stConvertParam.nSrcDataLen = MAX_IMAGE_DATA_SIZE;           //ch:输入数据大小 | en:input data size
             stConvertParam.enDstPixelType = PixelType_Gvsp_BGR8_Packed; //ch:输出像素格式 | en:output pixel format                      //! 输出格式 RGB
@@ -698,9 +718,9 @@ namespace camera
             pthread_mutex_unlock(&mutex);
             double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
             //*************************************testing img********************************//
-            //std::cout << "HK_camera,Time:" << time << "\tFPS:" << 1 / time << std::endl;
-            //imshow("HK vision",frame);
-            //waitKey(1);
+            // std::cout << "HK_camera,Time:" << time << "\tFPS:" << 1 / time << std::endl;
+            // cv::imshow("HK vision",frame);
+            // cv::waitKey(1);
         }
         free(m_pBufForDriver);
         free(m_pBufForSaveImage);
