@@ -1,6 +1,6 @@
 #ifndef CAMERA_HPP
 #define CAMERA_HPP
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 #include <stdio.h>
 #include <pthread.h>
 #include <opencv2/opencv.hpp>
@@ -12,14 +12,15 @@ namespace camera
 {
 //********** define ************************************/
 #define MAX_IMAGE_DATA_SIZE (4 * g_height * g_width)
-    int g_width;
-    int g_height;
+    extern int g_width;      // 改为 extern，在 cpp 中定义
+    extern int g_height;
     //********** frame ************************************/
-    cv::Mat frame;
+    extern cv::Mat frame;
     //********** frame_empty ******************************/
-    bool frame_empty = 0;
+    extern bool frame_empty;
     //********** mutex ************************************/
-    pthread_mutex_t mutex;
+    extern pthread_mutex_t mutex;
+
     //********** CameraProperties config ************************************/
     enum CamerProperties
     {
@@ -51,7 +52,7 @@ namespace camera
     {
     public:
         //********** 构造函数  ****************************/
-        Camera(ros::NodeHandle &node);
+        Camera(rclcpp::Node::SharedPtr node);
         //********** 析构函数  ****************************/
         ~Camera();
         //********** 原始信息转换线程 **********************/
@@ -63,7 +64,7 @@ namespace camera
         bool set(camera::CamerProperties type, float value);
         //********** 恢复默认参数 *************************/
         bool reset();
-        //********** 读图10个相机的原始图像 ********************************/
+        //********** 读图 ********************************/
         void ReadImg(cv::Mat &image);
 
     private:
@@ -96,30 +97,51 @@ namespace camera
     //^ *********************************************************************************** //
 
     //^ ********************************** Camera constructor************************************ //
-    Camera::Camera(ros::NodeHandle &node)
+    Camera::Camera(rclcpp::Node::SharedPtr node)
     {
         handle = NULL;
 
-        //********** 读取待设置的摄像头参数 第三个参数是默认值 yaml文件未给出该值时生效 ********************************/
-        node.param("width", width, 3072);
-        node.param("height", height, 2048);
-        node.param("Offset_x", Offset_x, 0);
-        node.param("Offset_y", Offset_y, 0);
-        node.param("PixelFormat", PixelFormat, 0x0108000A);
-        node.param("FrameRateEnable", FrameRateEnable, false);
-        node.param("FrameRate", FrameRate, 10);
-        node.param("TriggerMode", TriggerMode, 1);
-        node.param("TriggerSource", TriggerSource, 0);
-        node.param("LineSelector", LineSelector, 2);
-        node.param("BurstFrameCount", BurstFrameCount, 1); // 一次触发采集的次数
-        node.param("ExposureAuto", ExposureAuto, 0);
-        node.param("ExposureTime", ExposureTime, 5000);
-        node.param("GainAuto", GainAuto, 0);
-        node.param("Gain", Gain, (float)10.0);
-        node.param("GammaEnable", GammaEnable, false);
-        node.param("Gamma", Gamma, (float)0.7);
-        node.param("SaturationEnable", SaturationEnable, false);
-        node.param("Saturation", Saturation, 128);
+        // 声明并获取参数（带默认值）
+        node->declare_parameter<int>("width", 3072);
+        node->declare_parameter<int>("height", 2048);
+        node->declare_parameter<int>("Offset_x", 0);
+        node->declare_parameter<int>("Offset_y", 0);
+        node->declare_parameter<int>("PixelFormat", 0x0108000A);
+        node->declare_parameter<bool>("FrameRateEnable", false);
+        node->declare_parameter<int>("FrameRate", 10);
+        node->declare_parameter<int>("TriggerMode", 1);
+        node->declare_parameter<int>("TriggerSource", 0);
+        node->declare_parameter<int>("LineSelector", 2);
+        node->declare_parameter<int>("BurstFrameCount", 1);
+        node->declare_parameter<int>("ExposureAuto", 0);
+        node->declare_parameter<int>("ExposureTime", 5000);
+        node->declare_parameter<int>("GainAuto", 0);
+        node->declare_parameter<float>("Gain", 10.0f);
+        node->declare_parameter<bool>("GammaEnable", false);
+        node->declare_parameter<float>("Gamma", 0.7f);
+        node->declare_parameter<bool>("SaturationEnable", false);
+        node->declare_parameter<int>("Saturation", 128);
+
+        node->get_parameter("width", width);
+        node->get_parameter("height", height);
+        node->get_parameter("Offset_x", Offset_x);
+        node->get_parameter("Offset_y", Offset_y);
+        node->get_parameter("PixelFormat", PixelFormat);
+        node->get_parameter("FrameRateEnable", FrameRateEnable);
+        node->get_parameter("FrameRate", FrameRate);
+        node->get_parameter("TriggerMode", TriggerMode);
+        node->get_parameter("TriggerSource", TriggerSource);
+        node->get_parameter("LineSelector", LineSelector);
+        node->get_parameter("BurstFrameCount", BurstFrameCount);
+        node->get_parameter("ExposureAuto", ExposureAuto);
+        node->get_parameter("ExposureTime", ExposureTime);
+        node->get_parameter("GainAuto", GainAuto);
+        node->get_parameter("Gain", Gain);
+        node->get_parameter("GammaEnable", GammaEnable);
+        node->get_parameter("Gamma", Gamma);
+        node->get_parameter("SaturationEnable", SaturationEnable);
+        node->get_parameter("Saturation", Saturation);
+
         g_width = width;
         g_height = height;
 
@@ -687,7 +709,7 @@ namespace camera
         MV_CC_PIXEL_CONVERT_PARAM stConvertParam = {0};
         cv::Mat tmp;
         int image_empty_count = 0; //空图帧数
-        while (ros::ok())
+        while (rclcpp::ok())
         {
             start = static_cast<double>(cv::getTickCount());
             nRet = MV_CC_GetOneFrameTimeout(p_handle, m_pBufForDriver, MAX_IMAGE_DATA_SIZE, &stImageInfo, 15);
@@ -695,7 +717,8 @@ namespace camera
             {
                 if (++image_empty_count > 100)
                 {
-                    ROS_INFO("The Number of Faild Reading Exceed The Set Value!\n");
+                    RCLCPP_INFO(rclcpp::get_logger("HKWorkThread"),
+                                "The Number of Faild Reading Exceed The Set Value!\n");
                     exit(-1);
                 }
                 continue;

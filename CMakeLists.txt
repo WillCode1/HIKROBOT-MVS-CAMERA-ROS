@@ -1,45 +1,47 @@
-cmake_minimum_required(VERSION 2.8.3)
-
+cmake_minimum_required(VERSION 3.5)
 project(hikrobot_camera)
 
-add_compile_options(-std=c++17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  rospy
-  std_msgs
-  cv_bridge
-  image_transport
-  camera_info_manager
-)
-
-catkin_package(
- 
-)
-
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
 
 include_directories(
-  ${catkin_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
   include
+  ${OpenCV_INCLUDE_DIRS}
   /opt/MVS/include/
 )
 
-LINK_DIRECTORIES(
-/opt/MVS/lib/64/
-)
+link_directories(/opt/MVS/lib/64/)
 
 add_executable(${PROJECT_NAME}
-src/hikrobot_camera.cpp)
+  src/hikrobot_camera.cpp
+)
 
- target_link_libraries(${PROJECT_NAME}
-   ${catkin_LIBRARIES}
-   ${OpenCV_LIBRARIES}
-   MvCameraControl
-   MVGigEVisionSDK
-   MVRender
-   MvUsb3vTL
-   MediaProcess
-   X11
- )
+ament_target_dependencies(${PROJECT_NAME}
+  rclcpp
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
+target_link_libraries(${PROJECT_NAME}
+  ${OpenCV_LIBRARIES}
+  MvCameraControl
+  MVGigEVisionSDK
+  MVRender
+  MvUsb3vTL
+  MediaProcess
+  X11
+)
+
+install(TARGETS ${PROJECT_NAME}
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()
