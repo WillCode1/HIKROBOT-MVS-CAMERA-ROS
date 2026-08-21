@@ -36,7 +36,7 @@ int main(int argc, char **argv)
     cv_bridge::CvImagePtr cv_ptr = boost::make_shared<cv_bridge::CvImage>();
     cv_ptr->encoding = sensor_msgs::image_encodings::BGR8;  // 就是rgb格式 
     
-    //********** 10 Hz        **********/
+    //********** 100 Hz        **********/
     ros::Rate loop_rate(100);
 
     while (ros::ok())
