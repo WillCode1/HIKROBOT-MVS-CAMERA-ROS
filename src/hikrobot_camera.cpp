@@ -4,7 +4,6 @@
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
-#include <camera_info_manager/camera_info_manager.h>
 #include "hikrobot_camera.hpp"
 
 // 剪裁掉照片和雷达没有重合的视角，去除多余像素可以使rosbag包变小
