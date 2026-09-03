@@ -17,7 +17,13 @@ include_directories(
   /opt/MVS/include/
 )
 
-link_directories(/opt/MVS/lib/64/)
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64")
+  link_directories(/opt/MVS/lib/aarch64/)
+  message(STATUS "Running on arrch64")
+elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64")
+  link_directories(/opt/MVS/lib/64/)
+  message(STATUS "Running on x86_64")
+endif()
 
 add_executable(${PROJECT_NAME}
   src/hikrobot_camera.cpp

@@ -11,7 +11,7 @@
 namespace camera
 {
 //********** define ************************************/
-#define MAX_IMAGE_DATA_SIZE (4 * g_height * g_width)
+#define MAX_IMAGE_DATA_SIZE (3 * g_height * g_width)
     extern int g_width;      // 改为 extern，在 cpp 中定义
     extern int g_height;
     //********** frame ************************************/
