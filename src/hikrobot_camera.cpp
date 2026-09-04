@@ -62,7 +62,7 @@ int main(int argc, char **argv)
     const char *shared_file_name = path_for_time_stamp.c_str();
     int fd = open(shared_file_name, O_RDWR);
     auto pointt = (time_stamp *)mmap(NULL, sizeof(time_stamp), PROT_READ | PROT_WRITE,
-                                             MAP_SHARED, fd, 0);
+                                     MAP_SHARED, fd, 0);
 
     // 主循环频率 (100 Hz)
     rclcpp::Rate loop_rate(100);
