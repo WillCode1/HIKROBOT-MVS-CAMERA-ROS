@@ -2,6 +2,9 @@
 #include "opencv2/opencv.hpp"
 #include <vector>
 #include <memory>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include "rclcpp/rclcpp.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include "image_transport/image_transport.hpp"
@@ -28,6 +31,12 @@ namespace camera {
     pthread_mutex_t mutex;
 }
 
+struct time_stamp
+{
+    int64_t high;
+    int64_t low;
+};
+
 int main(int argc, char **argv)
 {
     // 初始化 ROS2
@@ -46,6 +55,14 @@ int main(int argc, char **argv)
     sensor_msgs::msg::CameraInfo camera_info_msg;
     cv_bridge::CvImagePtr cv_ptr = std::make_shared<cv_bridge::CvImage>();
     cv_ptr->encoding = sensor_msgs::image_encodings::BGR8;
+
+    // 共享内存（时间戳）
+    const char *user_name = getlogin();
+    std::string path_for_time_stamp = "/home/" + std::string(user_name) + "/timeshare";
+    const char *shared_file_name = path_for_time_stamp.c_str();
+    int fd = open(shared_file_name, O_RDWR);
+    auto pointt = (time_stamp *)mmap(NULL, sizeof(time_stamp), PROT_READ | PROT_WRITE,
+                                             MAP_SHARED, fd, 0);
 
     // 主循环频率 (100 Hz)
     rclcpp::Rate loop_rate(100);
@@ -71,8 +88,20 @@ int main(int argc, char **argv)
         cv_ptr->image = src;
 #endif
 
+        rclcpp::Time rcv_time;
+        if (MVS_cap.TriggerMode && pointt != MAP_FAILED && pointt->low != 0)
+        {
+            int64_t b = pointt->low;
+            double time_pc = b / 1000000000.0;
+            rcv_time = rclcpp::Time(static_cast<int64_t>(time_pc * 1e9)); // 纳秒
+        }
+        else
+        {
+            rcv_time = rclcpp::Clock().now();
+        }
+
         image_msg = *(cv_ptr->toImageMsg());
-        image_msg.header.stamp = node->now();  // 使用 ROS2 时间
+        image_msg.header.stamp = rcv_time;
         image_msg.header.frame_id = "hikrobot_camera";
 
         camera_info_msg.header.frame_id = image_msg.header.frame_id;
@@ -81,6 +110,7 @@ int main(int argc, char **argv)
         image_pub.publish(image_msg, camera_info_msg);
     }
 
+    munmap(pointt, sizeof(time_stamp));
     rclcpp::shutdown();
     return 0;
 }

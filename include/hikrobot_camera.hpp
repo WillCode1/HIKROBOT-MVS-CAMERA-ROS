@@ -67,7 +67,6 @@ namespace camera
         //********** 读图 ********************************/
         void ReadImg(cv::Mat &image);
 
-    private:
         //********** handle ******************************/
         void *handle;
         //********** nThreadID ******************************/
